@@ -19,6 +19,8 @@ public class SignUpRequest {
     @Size(min = 6, max = 40, message = "Password must be between 6 and 40 characters")
     private String password;
 
+    private String roleCode;
+
     // Геттеры и сеттеры
     public String getUsername() {
         return username;
@@ -42,5 +44,13 @@ public class SignUpRequest {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public String getRoleCode() {
+        return roleCode;
+    }
+
+    public void setRoleCode(String roleCode) {
+        this.roleCode = roleCode;
     }
 }

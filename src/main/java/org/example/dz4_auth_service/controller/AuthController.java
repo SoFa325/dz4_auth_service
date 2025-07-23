@@ -45,28 +45,17 @@ public class AuthController {
     @Autowired
     private JWTUtils jwtUtils;
 
-    /**
-     * Аутентификация пользователя.
-     */
+
     @PostMapping("/signin")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
-        // Аутентификация через Spring Security
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
-
-        // Установка аутентификации в контекст безопасности
         SecurityContextHolder.getContext().setAuthentication(authentication);
-
-        // Генерация JWT токена
         String jwt = jwtUtils.generateJwtToken(authentication);
-
-        // Получение информации о пользователе
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
         List<String> roles = userDetails.getAuthorities().stream()
                 .map(item -> item.getAuthority())
                 .collect(Collectors.toList());
-
-        // Возврат ответа с токеном и информацией о пользователе
         return ResponseEntity.ok(new JWTAuthentificationResponse(jwt,
                 userDetails.getId(),
                 userDetails.getUsername(),
@@ -74,35 +63,41 @@ public class AuthController {
                 roles));
     }
 
-    /**
-     * Регистрация нового пользователя.
-     */
     @PostMapping("/signup")
     public ResponseEntity<?> registerUser(@Valid @RequestBody SignUpRequest signUpRequest) {
-        // Проверка уникальности username
+
         if (userRepository.existsByUsername(signUpRequest.getUsername())) {
             return ResponseEntity
                     .badRequest()
                     .body("Error: Username is already taken!");
         }
 
-        // Проверка уникальности email
         if (userRepository.existsByEmail(signUpRequest.getEmail())) {
             return ResponseEntity
                     .badRequest()
                     .body("Error: Email is already in use!");
         }
 
-        // Создание нового пользователя
-        User user = new User(signUpRequest.getUsername(),
+        User user = new User(
+                signUpRequest.getUsername(),
                 signUpRequest.getEmail(),
-                passwordEncoder.encode(signUpRequest.getPassword()));
+                passwordEncoder.encode(signUpRequest.getPassword())
+        );
 
-        // Назначение ролей (по умолчанию ROLE_GUEST)
         Set<Role> roles = new HashSet<>();
-        Role guestRole = roleRepository.findByName(EnumRole.ROLE_GUEST)
-                .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-        roles.add(guestRole);
+        Role defaultRole = roleRepository.findByName(EnumRole.ROLE_GUEST)
+                .orElseThrow(() -> new RuntimeException("Error: Role not found."));
+        roles.add(defaultRole);
+
+        if ("PREMIUM123".equals(signUpRequest.getRoleCode())) {
+            Role premiumRole = roleRepository.findByName(EnumRole.ROLE_PREMIUM_USER)
+                    .orElseThrow(() -> new RuntimeException("Error: Role not found."));
+            roles.add(premiumRole);
+        } else if ("ADMIN123".equals(signUpRequest.getRoleCode())) {
+            Role adminRole = roleRepository.findByName(EnumRole.ROLE_ADMIN)
+                    .orElseThrow(() -> new RuntimeException("Error: Role not found."));
+            roles.add(adminRole);
+        }
 
         user.setRoles(roles);
         userRepository.save(user);
@@ -110,18 +105,13 @@ public class AuthController {
         return ResponseEntity.ok("User registered successfully!");
     }
 
-    /**
-     * Обновление JWT токена.
-     */
+
     @PostMapping("/refresh-token")
     public ResponseEntity<?> refreshToken(@RequestHeader("Authorization") String token) {
         String refreshedToken = jwtUtils.refreshToken(token.substring(7));
         return ResponseEntity.ok(new JWTAuthentificationResponse(refreshedToken, null, null, null, null));
     }
 
-    /**
-     * Выход из системы (отзыв токена).
-     */
     @PostMapping("/signout")
     public ResponseEntity<?> logoutUser(@RequestHeader("Authorization") String token) {
         jwtUtils.invalidateToken(token.substring(7));
